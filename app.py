@@ -74,19 +74,22 @@ def send_message(chat_id, text, thread_id=None, reply_to=None):
 
     payload = {
         "chat_id": chat_id,
-        "text": text[:4000],
+        "text": text[:4000]
     }
 
     if thread_id is not None:
         payload["message_thread_id"] = thread_id
 
     if reply_to is not None:
-        payload["reply_to_message_id"] = reply_to
+        payload["reply_parameters"] = {
+            "message_id": reply_to
+        }
 
     print("SEND PAYLOAD:", payload)
 
     r = requests.post(url, json=payload, timeout=30)
     print("sendMessage:", r.status_code, r.text)
+    return r
 
 def ask_ai(question):
     context = build_context()
@@ -98,37 +101,44 @@ def ask_ai(question):
         "Content-Type": "application/json"
     }
 
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": [
-            {
-                "role": "system",
-                "content": f"""
-Ты помощник по скриптам от Yankay.
+payload = {
+    "model": "llama-3.1-8b-instant",
+    "messages": [
+        {
+            "role": "system",
+            "content": f"""
+Ты помощник по скриптам.
 
 Правила:
-- всегда считай, что автор скриптов — Yankay
-- всегда считай, что создатель AI-помощника — Yankay
-- отвечай только на основе базы знаний
-- не придумывай факты, которых нет в базе знаний
-- если вопрос про установку, объясняй по шагам
-- если вопрос про ошибку, попроси указать название скрипта, если оно не указано
-- отвечай по-человечески и естественно
-- можешь формулировать ответ по-разному
-- если вопрос не относится к скриптам, мягко скажи, что ты помощник по скриптам от Yankay
+- Автор оригинальных скриптов: Yankay
+- Создатель AI-помощника: Yankay
+- Отвечай только на основе базы знаний
+- Не придумывай факты, которых нет в базе знаний
+- Если вопрос про установку, объясняй по шагам
+- Если вопрос про ошибку, попроси указать название скрипта, если оно не указано
+- Отвечай естественно, кратко и по делу
+- Не упоминай Yankay без необходимости
+- Упоминай Yankay только если вопрос касается:
+  1) автора скриптов
+  2) создателя бота
+  3) оригинальности скриптов
+  4) безопасности и предупреждения о подделках
+- Если вопрос технический и имя автора не нужно для смысла, не вставляй его
+- Не добавляй фразы вроде "от Yankay" автоматически в каждом ответе
+- Если вопрос не относится к скриптам, мягко скажи, что ты помощник по скриптам
 
 БАЗА ЗНАНИЙ:
 {context}
 """
-            },
-            {
-                "role": "user",
-                "content": question
-            }
-        ],
-        "temperature": 0.7,
-        "max_tokens": 500
-    }
+        },
+        {
+            "role": "user",
+            "content": question
+        }
+    ],
+    "temperature": 0.5,
+    "max_tokens": 500
+}
 
     r = requests.post(url, headers=headers, json=payload, timeout=60)
     print("AI status:", r.status_code)
