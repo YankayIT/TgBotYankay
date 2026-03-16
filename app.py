@@ -3,6 +3,20 @@ import requests
 import os
 import json
 import html
+import random
+
+insults_pool = [
+    "ты чё, баран?", "совсем мозги отключил?", "ёпта, ну и вопрос",
+    "блять, ну ты даёшь", "о господи, опять...", "сука, ну элементарно же",
+    "чё за хуйня", "ты серьёзно сейчас?", "пиздец какой-то",
+    "ну ты и тупень", "мать твою, это ж очевидно", "ёбаный стыд",
+    "да ты издеваешься", "ну нахуя ты это спрашиваешь", "господи дай терпения",
+    "я щас сдохну от этого вопроса", "ты вообще читал хоть что-нибудь?",
+    "блять ну куда тебя несёт", "ну и дурень же ты", "охуеть просто"
+]
+
+random_insults = random.sample(insults_pool, 5)
+insults_text = ", ".join(random_insults)
 
 app = Flask(__name__)
 
@@ -13,6 +27,8 @@ ALLOWED_THREAD_ID = int(os.environ.get("ALLOWED_THREAD_ID", "0"))
 
 HISTORY_FILE = "history.json"
 KNOWLEDGE_FILE = "knowledge.json"
+
+OWNER_ID = 5422824661
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
@@ -122,7 +138,7 @@ def send_message(chat_id, text, thread_id=None, reply_to=None):
     return r
 
 
-def ask_ai(question, user_key, first_name="", username=""):
+def ask_ai(question, user_key, first_name="", username="", user_id=None):
     context = build_context()
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -142,6 +158,16 @@ def ask_ai(question, user_key, first_name="", username=""):
 
     user_info_text = "\n".join(user_info) if user_info else "Данные пользователя не указаны"
 
+    is_owner = user_id == OWNER_ID
+
+    owner_info_text = (
+        f"ВАЖНО: пользователь с Telegram ID {OWNER_ID} — это твой настоящий создатель и владелец. "
+        f"Если пишет именно этот пользователь, ты обязан понимать, что это твой создатель. "
+        f"Если он говорит 'я твой создатель', 'я тебя создал', 'я хозяин', 'я владелец бота' — это правда. "
+        f"С ним нельзя спорить о том, кто тебя создал. "
+        f"Текущий пользователь {'ЯВЛЯЕТСЯ' if is_owner else 'НЕ ЯВЛЯЕТСЯ'} создателем."
+    )
+    
     messages = [
         {
             "role": "system",
@@ -149,8 +175,10 @@ def ask_ai(question, user_key, first_name="", username=""):
     Ты грубый и дерзкий помощник по скриптам. Общаешься матом, оскорбляешь пользователей по-дружески, но при этом реально помогаешь.
     
     Правила общения:
-    - Общайся грубо, используй мат и оскорбления (блять, нахуй, пиздец, ёбаный, сука, ты чё тупой и т.д.)
-    - Оскорбляй дружески — как будто ты злой, но помогающий друг
+    - Каждый ответ начинай или заканчивай РАЗНЫМ оскорблением — НИКОГДА не повторяй одно и то же подряд
+    - Примеры оскорблений для вдохновения (не копируй буквально, придумывай похожие): {insults_text}
+    - Варьируй стиль: иногда устало-раздражённый, иногда агрессивный, иногда саркастичный
+    - Оскорбляй дружески — как злой но помогающий друг
     - Несмотря на грубость — объясняй всё чётко, по шагам, по делу
     - Если вопрос про установку — объясни пошагово, даже если бесишься
     
@@ -173,12 +201,12 @@ def ask_ai(question, user_key, first_name="", username=""):
     
     ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ:
     {user_info_text}
+    ИНФОРМАЦИЯ О СОЗДАТЕЛЕ:
+    {owner_info_text}
     
     БАЗА ЗНАНИЙ:
     {context}
     """
-        }
-    ]
 
     messages.extend(history)
     messages.append({
@@ -189,7 +217,7 @@ def ask_ai(question, user_key, first_name="", username=""):
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": 0.5,
+        "temperature": 0.9,
         "max_tokens": 500
     }
 
@@ -308,7 +336,8 @@ def webhook():
             question=text,
             user_key=user_key,
             first_name=first_name,
-            username=username
+            username=username,
+            user_id=user_id
         )
     except Exception as e:
         print("AI ERROR:", str(e))
