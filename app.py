@@ -100,7 +100,8 @@ def send_message(chat_id, text, thread_id=None, reply_to=None):
 
     payload = {
         "chat_id": chat_id,
-        "text": text[:4000]
+        "text": text[:4000],
+        "parse_mode": "MarkdownV2"
     }
 
     if thread_id is not None:
