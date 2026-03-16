@@ -69,23 +69,24 @@ def build_context():
     return "\n".join(parts)
 
 
-def send_message(chat_id, text, thread_id=None):
+def send_message(chat_id, text, thread_id=None, reply_to=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     payload = {
-        "chat_id": str(chat_id),
-        "text": text[:4000]
+        "chat_id": chat_id,
+        "text": text[:4000],
     }
 
     if thread_id is not None:
-        payload["message_thread_id"] = int(thread_id)
+        payload["message_thread_id"] = thread_id
+
+    if reply_to is not None:
+        payload["reply_to_message_id"] = reply_to
 
     print("SEND PAYLOAD:", payload)
 
     r = requests.post(url, json=payload, timeout=30)
     print("sendMessage:", r.status_code, r.text)
-    return r
-
 
 def ask_ai(question):
     context = build_context()
@@ -200,7 +201,12 @@ def webhook():
             "- кто автор скриптов\n"
             "- что делает этот скрипт"
         )
-        send_message(chat_id, answer, thread_id=thread_id)
+        send_message(
+            chat_id,
+            answer,
+            thread_id=thread_id,
+            reply_to=message_id
+        )
         return "ok", 200
 
     try:
