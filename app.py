@@ -286,8 +286,8 @@ def ask_ai(question, user_key, first_name="", username="", user_id=None):
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 350
+        "temperature": 0.6,
+        "max_tokens": 450
     }
 
     r = requests.post(url, headers=headers, json=payload, timeout=60)
