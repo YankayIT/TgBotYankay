@@ -2,6 +2,7 @@ from flask import Flask, request
 import requests
 import os
 import json
+import html
 
 app = Flask(__name__)
 
@@ -98,10 +99,12 @@ def clear_user_history(user_key):
 def send_message(chat_id, text, thread_id=None, reply_to=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+    safe_text = html.escape(text[:4000])
+
     payload = {
         "chat_id": chat_id,
-        "text": text[:4000],
-        "parse_mode": "MarkdownV2"
+        "text": safe_text,
+        "parse_mode": "HTML"
     }
 
     if thread_id is not None:
