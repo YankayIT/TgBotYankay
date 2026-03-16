@@ -10,6 +10,9 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 ALLOWED_CHAT_ID = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
 ALLOWED_THREAD_ID = int(os.environ.get("ALLOWED_THREAD_ID", "0"))
 
+HISTORY_FILE = "history.json"
+KNOWLEDGE_FILE = "knowledge.json"
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
 
@@ -24,8 +27,8 @@ if not ALLOWED_THREAD_ID:
 
 
 def load_knowledge():
-    if os.path.exists("knowledge.json"):
-        with open("knowledge.json", "r", encoding="utf-8") as f:
+    if os.path.exists(KNOWLEDGE_FILE):
+        with open(KNOWLEDGE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
 
     return {
@@ -45,7 +48,20 @@ def load_knowledge():
     }
 
 
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
 KNOWLEDGE = load_knowledge()
+HISTORY = load_history()
 
 
 def build_context():
@@ -69,13 +85,22 @@ def build_context():
     return "\n".join(parts)
 
 
+def get_user_key(chat_id, thread_id, user_id):
+    return f"{chat_id}:{thread_id}:{user_id}"
+
+
+def clear_user_history(user_key):
+    if user_key in HISTORY:
+        del HISTORY[user_key]
+        save_history(HISTORY)
+
+
 def send_message(chat_id, text, thread_id=None, reply_to=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     payload = {
         "chat_id": chat_id,
-        "text": text[:4000],
-        "parse_mode": "Markdown"
+        "text": text[:4000]
     }
 
     if thread_id is not None:
@@ -92,7 +117,8 @@ def send_message(chat_id, text, thread_id=None, reply_to=None):
     print("sendMessage:", r.status_code, r.text)
     return r
 
-def ask_ai(question):
+
+def ask_ai(question, user_key, first_name="", username=""):
     context = build_context()
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -102,12 +128,20 @@ def ask_ai(question):
         "Content-Type": "application/json"
     }
 
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": [
-            {
-                "role": "system",
-                "content": f"""
+    history = HISTORY.get(user_key, [])
+
+    user_info = []
+    if first_name:
+        user_info.append(f"Имя пользователя: {first_name}")
+    if username:
+        user_info.append(f"Username Telegram: @{username}")
+
+    user_info_text = "\n".join(user_info) if user_info else "Данные пользователя не указаны"
+
+    messages = [
+        {
+            "role": "system",
+            "content": f"""
 Ты помощник по скриптам.
 
 Правила:
@@ -115,6 +149,8 @@ def ask_ai(question):
 - Создатель AI-помощника: Yankay
 - Отвечай только на основе базы знаний
 - Не придумывай факты, которых нет в базе знаний
+- Используй историю диалога, чтобы помнить, о чём пользователь спрашивал раньше
+- Если пользователь пишет уточнение вроде "а куда", "а как", "почему", связывай это с предыдущими сообщениями
 - Если вопрос про установку, объясняй по шагам
 - Если вопрос про ошибку, попроси указать название скрипта, если оно не указано
 - Отвечай естественно, кратко и по делу
@@ -128,15 +164,24 @@ def ask_ai(question):
 - Не добавляй фразы вроде "от Yankay" автоматически в каждом ответе
 - Если вопрос не относится к скриптам, мягко скажи, что ты помощник по скриптам
 
+ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ:
+{user_info_text}
+
 БАЗА ЗНАНИЙ:
 {context}
 """
-            },
-            {
-                "role": "user",
-                "content": question
-            }
-        ],
+        }
+    ]
+
+    messages.extend(history)
+    messages.append({
+        "role": "user",
+        "content": question
+    })
+
+    payload = {
+        "model": "llama-3.1-8b-instant",
+        "messages": messages,
         "temperature": 0.5,
         "max_tokens": 500
     }
@@ -147,7 +192,16 @@ def ask_ai(question):
     r.raise_for_status()
 
     data = r.json()
-    return data["choices"][0]["message"]["content"].strip()
+    answer = data["choices"][0]["message"]["content"].strip()
+
+    history.append({"role": "user", "content": question})
+    history.append({"role": "assistant", "content": answer})
+
+    HISTORY[user_key] = history[-20:]
+    save_history(HISTORY)
+
+    return answer
+
 
 @app.route("/", methods=["GET"])
 def home():
@@ -156,7 +210,11 @@ def home():
 
 @app.route("/testsend", methods=["GET"])
 def testsend():
-    r = send_message(ALLOWED_CHAT_ID, "Тестовое сообщение в нужную тему", thread_id=ALLOWED_THREAD_ID)
+    r = send_message(
+        ALLOWED_CHAT_ID,
+        "Тестовое сообщение в нужную тему",
+        thread_id=ALLOWED_THREAD_ID
+    )
     return {
         "ok": True,
         "status_code": r.status_code,
@@ -178,13 +236,19 @@ def webhook():
         return "ok", 200
 
     chat = message.get("chat", {})
+    from_user = message.get("from", {})
+
     chat_id = chat.get("id")
+    user_id = from_user.get("id")
+    first_name = from_user.get("first_name", "")
+    username = from_user.get("username", "")
     text = message.get("text", "").strip()
     thread_id = message.get("message_thread_id")
     message_id = message.get("message_id")
 
     print("CHAT ID:", chat_id)
     print("THREAD ID:", thread_id)
+    print("USER ID:", user_id)
     print("MESSAGE ID:", message_id)
     print("TEXT:", text)
 
@@ -200,10 +264,13 @@ def webhook():
         print("IGNORED: empty text")
         return "ok", 200
 
+    user_key = get_user_key(chat_id, thread_id, user_id)
+
     if text.lower() == "/start":
         answer = (
             "Привет. Я AI-помощник для пользователей скриптов от Yankay.\n\n"
             "Я работаю только в этой теме.\n"
+            "Я запоминаю последние сообщения в рамках диалога.\n\n"
             "Можешь спросить, например:\n"
             "- где скачать moonloader\n"
             "- как установить скрипт\n"
@@ -219,8 +286,23 @@ def webhook():
         )
         return "ok", 200
 
+    if text.lower() == "/clear":
+        clear_user_history(user_key)
+        send_message(
+            chat_id,
+            "История твоего диалога очищена.",
+            thread_id=thread_id,
+            reply_to=message_id
+        )
+        return "ok", 200
+
     try:
-        answer = ask_ai(text)
+        answer = ask_ai(
+            question=text,
+            user_key=user_key,
+            first_name=first_name,
+            username=username
+        )
     except Exception as e:
         print("AI ERROR:", str(e))
         answer = (
@@ -228,7 +310,12 @@ def webhook():
             "Проверьте GROQ_API_KEY, лимиты API и файл knowledge.json."
         )
 
-    send_message(chat_id, answer, thread_id=thread_id)
+    send_message(
+        chat_id,
+        answer,
+        thread_id=thread_id,
+        reply_to=message_id
+    )
     return "ok", 200
 
 
