@@ -18,11 +18,12 @@ with open("knowledge.txt", "r", encoding="utf-8") as f:
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    r = requests.post(url, json={
+
+    requests.post(url, json={
         "chat_id": chat_id,
-        "text": text[:4000]
+        "text": text[:4000],
+        "parse_mode": "HTML"
     }, timeout=30)
-    print("sendMessage:", r.status_code, r.text)
 
 def ask_ai(question):
     url = "https://api.groq.com/openai/v1/chat/completions"
