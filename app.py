@@ -25,7 +25,7 @@ def send_message(chat_id, text):
     print("sendMessage:", r.status_code, r.text)
 
 def ask_ai(question):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
     prompt = f"""
 Ты помощник по одному конкретному скрипту.
