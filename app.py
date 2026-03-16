@@ -69,24 +69,22 @@ def build_context():
     return "\n".join(parts)
 
 
-def send_message(chat_id, text, thread_id=None, reply_to_message_id=None):
+def send_message(chat_id, text, thread_id=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     payload = {
-        "chat_id": chat_id,
+        "chat_id": str(chat_id),
         "text": text[:4000]
     }
 
-    if thread_id:
-        payload["message_thread_id"] = thread_id
+    if thread_id is not None:
+        payload["message_thread_id"] = int(thread_id)
 
-    if reply_to_message_id:
-        payload["reply_parameters"] = {
-            "message_id": reply_to_message_id
-        }
+    print("SEND PAYLOAD:", payload)
 
     r = requests.post(url, json=payload, timeout=30)
     print("sendMessage:", r.status_code, r.text)
+    return r
 
 
 def ask_ai(question):
@@ -145,6 +143,17 @@ def home():
     return "Bot running"
 
 
+@app.route("/testsend", methods=["GET"])
+def testsend():
+    r = send_message(ALLOWED_CHAT_ID, "Тестовое сообщение в нужную тему", thread_id=ALLOWED_THREAD_ID)
+    return {
+        "ok": True,
+        "status_code": r.status_code,
+        "chat_id": ALLOWED_CHAT_ID,
+        "thread_id": ALLOWED_THREAD_ID
+    }
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(silent=True)
@@ -163,16 +172,35 @@ def webhook():
     thread_id = message.get("message_thread_id")
     message_id = message.get("message_id")
 
-    # Бот работает только в одной конкретной группе
+    print("CHAT ID:", chat_id)
+    print("THREAD ID:", thread_id)
+    print("MESSAGE ID:", message_id)
+    print("TEXT:", text)
+
     if chat_id != ALLOWED_CHAT_ID:
+        print("IGNORED: wrong chat")
         return "ok", 200
 
-    # Бот работает только в одной конкретной теме
     if thread_id != ALLOWED_THREAD_ID:
+        print("IGNORED: wrong thread")
         return "ok", 200
 
-    # Только текстовые сообщения
     if not text:
+        print("IGNORED: empty text")
+        return "ok", 200
+
+    if text.lower() == "/start":
+        answer = (
+            "Привет. Я AI-помощник для пользователей скриптов от Yankay.\n\n"
+            "Я работаю только в этой теме.\n"
+            "Можешь спросить, например:\n"
+            "- где скачать moonloader\n"
+            "- как установить скрипт\n"
+            "- почему не работает скрипт\n"
+            "- кто автор скриптов\n"
+            "- что делает этот скрипт"
+        )
+        send_message(chat_id, answer, thread_id=thread_id)
         return "ok", 200
 
     try:
@@ -184,7 +212,7 @@ def webhook():
             "Проверьте GROQ_API_KEY, лимиты API и файл knowledge.json."
         )
 
-    send_message(chat_id, answer, thread_id=thread_id, reply_to_message_id=message_id)
+    send_message(chat_id, answer, thread_id=thread_id)
     return "ok", 200
 
 
