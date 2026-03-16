@@ -102,12 +102,12 @@ def ask_ai(question):
         "Content-Type": "application/json"
     }
 
-payload = {
-    "model": "llama-3.1-8b-instant",
-    "messages": [
-        {
-            "role": "system",
-            "content": f"""
+    payload = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {
+                "role": "system",
+                "content": f"""
 Ты помощник по скриптам.
 
 Правила:
@@ -131,15 +131,15 @@ payload = {
 БАЗА ЗНАНИЙ:
 {context}
 """
-        },
-        {
-            "role": "user",
-            "content": question
-        }
-    ],
-    "temperature": 0.5,
-    "max_tokens": 500
-}
+            },
+            {
+                "role": "user",
+                "content": question
+            }
+        ],
+        "temperature": 0.5,
+        "max_tokens": 500
+    }
 
     r = requests.post(url, headers=headers, json=payload, timeout=60)
     print("AI status:", r.status_code)
@@ -148,7 +148,6 @@ payload = {
 
     data = r.json()
     return data["choices"][0]["message"]["content"].strip()
-
 
 @app.route("/", methods=["GET"])
 def home():
