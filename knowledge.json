@@ -1,6 +1,7 @@
 {
   "script_author": "Yankay",
   "ai_author": "Yankay",
+  "scripts_platform": "Yankay создаёт оригинальные скрипты только для Radmir RP",
   "assistant_name": "AI-помощник для пользователей скриптов от Yankay",
   "moonloader_download": "https://drive.usercontent.google.com/download?id=1hzrQhEqrlLRcpxxQcA_0a48xpCMH2Kjr&export=download",
   "moonloader_info": "Moonloader — это загрузчик Lua-скриптов. Он нужен для запуска lua-скриптов в игре.",
