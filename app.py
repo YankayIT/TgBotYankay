@@ -7,12 +7,20 @@ app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+ALLOWED_CHAT_ID = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
+ALLOWED_THREAD_ID = int(os.environ.get("ALLOWED_THREAD_ID", "0"))
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
 
 if not GROQ_API_KEY:
     raise RuntimeError("GROQ_API_KEY not set")
+
+if not ALLOWED_CHAT_ID:
+    raise RuntimeError("ALLOWED_CHAT_ID not set")
+
+if not ALLOWED_THREAD_ID:
+    raise RuntimeError("ALLOWED_THREAD_ID not set")
 
 
 def load_knowledge():
@@ -23,6 +31,7 @@ def load_knowledge():
     return {
         "script_author": "Yankay",
         "ai_author": "Yankay",
+        "assistant_name": "AI-помощник для пользователей скриптов от Yankay",
         "moonloader_download": "Ссылка не указана",
         "moonloader_info": "Moonloader — это загрузчик Lua-скриптов.",
         "script_install": [
@@ -46,7 +55,10 @@ def build_context():
         if isinstance(value, list):
             parts.append(f"{key}:")
             for item in value:
-                parts.append(f"- {item}")
+                if isinstance(item, dict):
+                    parts.append(json.dumps(item, ensure_ascii=False))
+                else:
+                    parts.append(f"- {item}")
         elif isinstance(value, dict):
             parts.append(f"{key}: {json.dumps(value, ensure_ascii=False, indent=2)}")
         else:
@@ -57,13 +69,21 @@ def build_context():
     return "\n".join(parts)
 
 
-def send_message(chat_id, text):
+def send_message(chat_id, text, thread_id=None, reply_to_message_id=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     payload = {
         "chat_id": chat_id,
         "text": text[:4000]
     }
+
+    if thread_id:
+        payload["message_thread_id"] = thread_id
+
+    if reply_to_message_id:
+        payload["reply_parameters"] = {
+            "message_id": reply_to_message_id
+        }
 
     r = requests.post(url, json=payload, timeout=30)
     print("sendMessage:", r.status_code, r.text)
@@ -87,17 +107,16 @@ def ask_ai(question):
                 "content": f"""
 Ты помощник по скриптам от Yankay.
 
-Правила ответа:
+Правила:
 - всегда считай, что автор скриптов — Yankay
 - всегда считай, что создатель AI-помощника — Yankay
 - отвечай только на основе базы знаний
 - не придумывай факты, которых нет в базе знаний
-- если вопрос про установку, объясняй просто и пошагово
-- если вопрос про ошибку, попроси пользователя указать название скрипта, если оно не указано
-- отвечай естественно, человеческим языком
-- можно формулировать ответы по-разному, не обязательно одинаково
-- если пользователь просто общается, отвечай дружелюбно
-- если вопрос не относится к скриптам и нет данных в базе, мягко скажи, что ты помощник по скриптам от Yankay
+- если вопрос про установку, объясняй по шагам
+- если вопрос про ошибку, попроси указать название скрипта, если оно не указано
+- отвечай по-человечески и естественно
+- можешь формулировать ответ по-разному
+- если вопрос не относится к скриптам, мягко скажи, что ты помощник по скриптам от Yankay
 
 БАЗА ЗНАНИЙ:
 {context}
@@ -138,11 +157,22 @@ def webhook():
     if not message:
         return "ok", 200
 
-    chat_id = message["chat"]["id"]
+    chat = message.get("chat", {})
+    chat_id = chat.get("id")
     text = message.get("text", "").strip()
+    thread_id = message.get("message_thread_id")
+    message_id = message.get("message_id")
 
+    # Бот работает только в одной конкретной группе
+    if chat_id != ALLOWED_CHAT_ID:
+        return "ok", 200
+
+    # Бот работает только в одной конкретной теме
+    if thread_id != ALLOWED_THREAD_ID:
+        return "ok", 200
+
+    # Только текстовые сообщения
     if not text:
-        send_message(chat_id, "Я понимаю только текстовые сообщения.")
         return "ok", 200
 
     try:
@@ -154,7 +184,7 @@ def webhook():
             "Проверьте GROQ_API_KEY, лимиты API и файл knowledge.json."
         )
 
-    send_message(chat_id, answer)
+    send_message(chat_id, answer, thread_id=thread_id, reply_to_message_id=message_id)
     return "ok", 200
 
 
