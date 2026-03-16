@@ -207,7 +207,9 @@ def ask_ai(question, user_key, first_name="", username="", user_id=None):
     БАЗА ЗНАНИЙ:
     {context}
     """
-
+        }
+    ]
+    
     messages.extend(history)
     messages.append({
         "role": "user",
@@ -218,7 +220,7 @@ def ask_ai(question, user_key, first_name="", username="", user_id=None):
         "model": "llama-3.1-8b-instant",
         "messages": messages,
         "temperature": 0.9,
-        "max_tokens": 500
+        "max_tokens": 200
     }
 
     r = requests.post(url, headers=headers, json=payload, timeout=60)
@@ -232,7 +234,7 @@ def ask_ai(question, user_key, first_name="", username="", user_id=None):
     history.append({"role": "user", "content": question})
     history.append({"role": "assistant", "content": answer})
 
-    HISTORY[user_key] = history[-20:]
+    HISTORY[user_key] = history[-6:]
     save_history(HISTORY)
 
     return answer
