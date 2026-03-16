@@ -5,13 +5,13 @@ import os
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    raise RuntimeError("GROQ_API_KEY not set")
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
-
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY not set")
 
 with open("knowledge.txt", "r", encoding="utf-8") as f:
     KNOWLEDGE = f.read()
@@ -25,39 +25,41 @@ def send_message(chat_id, text):
     print("sendMessage:", r.status_code, r.text)
 
 def ask_ai(question):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
-    prompt = f"""
-Ты помощник по одному конкретному скрипту.
-
-Отвечай только на основе базы знаний ниже.
-Если точного ответа нет, так и скажи.
-Объясняй простым языком, пошагово, если вопрос про установку или запуск.
-
-БАЗА ЗНАНИЙ:
-{KNOWLEDGE}
-
-ВОПРОС ПОЛЬЗОВАТЕЛЯ:
-{question}
-"""
-
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
-        ]
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
     }
 
-    r = requests.post(url, json=data, timeout=60)
+    payload = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Ты помощник по одному конкретному скрипту. "
+                    "Отвечай только на основе базы знаний. "
+                    "Если точного ответа нет, так и скажи. "
+                    "Если вопрос про установку или запуск — объясняй просто и по шагам.\n\n"
+                    f"БАЗА ЗНАНИЙ:\n{KNOWLEDGE}"
+                )
+            },
+            {
+                "role": "user",
+                "content": question
+            }
+        ],
+        "temperature": 0.2
+    }
+
+    r = requests.post(url, headers=headers, json=payload, timeout=60)
     print("AI status:", r.status_code)
     print("AI response:", r.text)
     r.raise_for_status()
 
-    result = r.json()
-    return result["candidates"][0]["content"]["parts"][0]["text"]
+    data = r.json()
+    return data["choices"][0]["message"]["content"]
 
 @app.route("/", methods=["GET"])
 def home():
