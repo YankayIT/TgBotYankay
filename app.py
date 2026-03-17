@@ -160,12 +160,10 @@ def trim_history(messages, limit=8):
 def send_message(chat_id, text, thread_id=None, reply_to=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    safe_text = html.escape(str(text)[:4000])
-
     payload = {
         "chat_id": chat_id,
-        "text": safe_text,
-        "parse_mode": "HTML"
+        "text": str(text)[:4000],
+        "parse_mode": "Markdown"
     }
 
     if thread_id is not None:
@@ -175,8 +173,6 @@ def send_message(chat_id, text, thread_id=None, reply_to=None):
         payload["reply_parameters"] = {
             "message_id": reply_to
         }
-
-    print("SEND PAYLOAD:", payload)
 
     r = requests.post(url, json=payload, timeout=30)
     print("sendMessage:", r.status_code, r.text)
