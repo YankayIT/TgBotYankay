@@ -8,7 +8,7 @@ import random
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GROQ_API_KEYS = os.environ.get("GROQ_API_KEYS", "").split(",")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").split(",")
 ALLOWED_CHAT_ID = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
 ALLOWED_THREAD_ID = int(os.environ.get("ALLOWED_THREAD_ID", "0"))
 
@@ -32,10 +32,10 @@ if not ALLOWED_THREAD_ID:
 def get_next_api_key():
     global current_key_index
 
-    if not GROQ_API_KEYS:
+    if not GROQ_API_KEY:
         raise RuntimeError("No API keys provided")
 
-    key = GROQ_API_KEYS[current_key_index]
+    key = GROQ_API_KEY[current_key_index]
     current_key_index = (current_key_index + 1) % len(GROQ_API_KEYS)
 
     return key
