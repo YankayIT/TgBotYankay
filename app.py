@@ -8,13 +8,13 @@ import random
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_API_KEYS = os.environ.get("GROQ_API_KEYS", "").split(",")
 ALLOWED_CHAT_ID = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
 ALLOWED_THREAD_ID = int(os.environ.get("ALLOWED_THREAD_ID", "0"))
 
 HISTORY_FILE = "history.json"
 KNOWLEDGE_FILE = "knowledge.json"
-
+current_key_index = 0
 OWNER_ID = 5422824661
 
 if not BOT_TOKEN:
@@ -29,6 +29,16 @@ if not ALLOWED_CHAT_ID:
 if not ALLOWED_THREAD_ID:
     raise RuntimeError("ALLOWED_THREAD_ID not set")
 
+def get_next_api_key():
+    global current_key_index
+
+    if not GROQ_API_KEYS:
+        raise RuntimeError("No API keys provided")
+
+    key = GROQ_API_KEYS[current_key_index]
+    current_key_index = (current_key_index + 1) % len(GROQ_API_KEYS)
+
+    return key
 
 STYLE_PHRASES = [
     "ладно, ща объясню нормально",
@@ -190,8 +200,10 @@ def ask_ai(question, user_key, first_name="", username="", user_id=None):
 
     url = "https://api.groq.com/openai/v1/chat/completions"
 
+    api_key = get_next_api_key()
+    
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
@@ -409,7 +421,6 @@ def webhook():
         print("AI ERROR:", str(e))
         answer = (
             "Сейчас не удалось получить ответ от AI. "
-            "Проверь GROQ_API_KEY, модель, сеть и логи сервера."
         )
 
     send_message(
