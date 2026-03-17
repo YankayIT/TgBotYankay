@@ -36,7 +36,7 @@ def get_next_api_key():
         raise RuntimeError("No API keys provided")
 
     key = GROQ_API_KEY[current_key_index]
-    current_key_index = (current_key_index + 1) % len(GROQ_API_KEYS)
+    current_key_index = (current_key_index + 1) % len(GROQ_API_KEY)
 
     return key
 
